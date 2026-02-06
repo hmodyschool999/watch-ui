@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>عووو سينما</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        :root {
+            --primary: #e50914; /* Netflix Red */
+            --dark: #000000;
+            --gray: #1f1f1f;
+            --text: #fff;
+            --chat-bg: #121212;
+            --msg-mine: #e50914;
+            --msg-other: #333333;
+        }
+
+        * { box-sizing: border_box; margin: 0; padding: 0; outline: none; -webkit-tap-highlight-color: transparent; }
+        body { background-color: var(--dark); color: var(--text); font-family: 'Segoe UI', sans-serif; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--dark); }
+        ::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+
+        /* Login Screen */
+        #login-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95); z-index: 2000;
+            display: flex; justify-content: center; align-items: center; flex-direction: column;
+        }
+        .login-box { background: var(--gray); padding: 2.5rem; border-radius: 12px; text-align: center; width: 90%; max-width: 350px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .login-box h2 { margin-bottom: 20px; color: var(--primary); letter-spacing: 1px; }
+        input { 
+            width: 100%; padding: 12px; margin: 8px 0; border-radius: 6px; 
+            border: 1px solid #333; background: #000; color: white; transition: 0.3s;
+        }
+        input:focus { border-color: var(--primary); }
+        button { 
+            padding: 12px 20px; border-radius: 6px; border: none; cursor: pointer; 
+            font-weight: bold; font-size: 1rem; transition: 0.2s; 
+        }
+        .btn-primary { background: var(--primary); color: white; width: 100%; margin-top: 10px; }
+        .btn-primary:active { transform: scale(0.98); }
+
+        /* Main Layout */
+        #app-container { display: none; height: 100vh; display: flex; flex-direction: column; }
+        
+        /* Navbar */
+        header { 
+            padding: 0 20px; background: #0a0a0a; display: flex; justify-content: space-between; 
+            align-items: center; height: 50px; border-bottom: 1px solid #333; 
+        }
+        .status-dot { height: 10px; width: 10px; background-color: #bbb; border-radius: 50%; display: inline-block; margin-left: 5px; }
+        .connected { background-color: #00ff00; box-shadow: 0 0 5px #00ff00; }
+
+        /* Content Area */
+        .main-content { display: flex; flex: 1; overflow: hidden; height: calc(100vh - 50px); }
+        
+        /* Video Section */
+        .video-section { 
+            flex: 3; background: #000; position: relative; display: flex; 
+            justify-content: center; align-items: center; 
+        }
+        video { width: 100%; height: 100%; max-height: 100%; object-fit: contain; }
+        
+        /* Admin Panel Overlay */
+        .admin-panel {
+            position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.6);
+            padding: 8px; border-radius: 8px; z-index: 100; display: flex; gap: 5px;
+            backdrop-filter: blur(5px); transition: opacity 0.3s;
+        }
+        .admin-panel:hover { opacity: 1; }
+        .admin-panel input { width: 150px; margin: 0; padding: 6px; font-size: 0.8rem; }
+        .admin-panel button { width: auto; margin: 0; padding: 6px 12px; font-size: 0.8rem; }
+
+        /* Custom Controls */
+        .controls-overlay {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            background: rgba(20, 20, 20, 0.8); padding: 10px 20px; border-radius: 50px;
+            display: flex; gap: 15px; align-items: center; opacity: 0; transition: opacity 0.3s;
+            backdrop-filter: blur(4px); box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        }
+        .video-section:hover .controls-overlay, .controls-overlay:hover { opacity: 1; }
+        
+        .control-btn {
+            background: none; border: none; color: white; font-size: 1.2rem; cursor: pointer;
+            padding: 5px; width: auto; margin: 0;
+        }
+        .control-btn:hover { color: var(--primary); }
+
+        /* Chat Section */
+        .chat-section { 
+            flex: 1; background: var(--chat-bg); display: flex; flex-direction: column; 
+            border-right: 1px solid #333; min-width: 300px; max-width: 400px;
+        }
+        .chat-header { padding: 12px; border-bottom: 1px solid #333; font-size: 0.9rem; background: #1a1a1a; display: flex; justify-content: space-between;}
+        .chat-messages { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+        
+        .message { padding: 8px 12px; border-radius: 12px; font-size: 0.9rem; max-width: 85%; word-wrap: break-word; line-height: 1.4; position: relative; }
+        .msg-mine { background: var(--msg-mine); align-self: flex-end; color: white; border-bottom-left-radius: 2px; }
+        .msg-other { background: var(--msg-other); align-self: flex-start; color: #ddd; border-bottom-right-radius: 2px; }
+        .msg-info { font-size: 0.7rem; margin-bottom: 3px; opacity: 0.6; font-weight: bold; }
+
+        .chat-input-area { padding: 10px; background: #1a1a1a; display: flex; gap: 8px; border-top: 1px solid #333; }
+        .chat-input-area input { margin: 0; background: #000; border: 1px solid #333; }
+        .chat-input-area button { margin: 0; width: auto; padding: 0 15px; }
+
+        /* Toast */
+        #toast {
+            visibility: hidden; min-width: 250px; background-color: var(--primary); color: #fff;
+            text-align: center; border-radius: 4px; padding: 12px; position: fixed; z-index: 3000;
+            left: 50%; bottom: 80px; transform: translateX(-50%); font-size: 0.9rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+        #toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s forwards; }
+        @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 80px; opacity: 1;} }
+        @keyframes fadeout { from {bottom: 80px; opacity: 1;} to {bottom: 0; opacity: 0;} }
+
+        /* Responsive Design (Mobile & Tablet) */
+        @media (max-width: 900px) {
+            .main-content { flex-direction: column; }
+            .video-section { flex: none; height: 45vh; width: 100%; }
+            .chat-section { flex: 1; min-width: 100%; border-right: none; border-top: 1px solid #333; max-width: none; }
+            .controls-overlay { opacity: 1; bottom: 10px; padding: 5px 15px; gap: 10px; } /* Always show on mobile */
+            .control-btn { font-size: 1rem; }
+            .admin-panel { top: 5px; left: 5px; transform: scale(0.9); transform-origin: top left; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="login-screen">
+        <div class="login-box">
+            <h2>عووو سينما 🍿</h2>
+            <input type="text" id="username" placeholder="اسم المستخدم">
+            <input type="password" id="password" placeholder="كلمة المرور">
+            <button class="btn-primary" onclick="login()">دخول</button>
+            <p id="login-error" style="color: #ff4444; margin-top: 10px; font-size: 0.9rem;"></p>
+        </div>
+    </div>
+
+    <div id="app-container">
+        <header>
+            <div style="display: flex; align-items: center;">
+                <h3 style="color: var(--primary); margin-left: 10px;">VANT</h3>
+                <span id="connection-status" class="status-dot"></span>
+            </div>
+            <div id="current-movie-title" style="font-size: 0.8rem; color: #888; white-space: nowrap; overflow: hidden; max-width: 200px;">Waiting...</div>
+        </header>
+
+        <div class="main-content">
+            <div class="video-section">
+                <div class="admin-panel">
+                    <input type="text" id="movie-url" placeholder="رابط الفيلم...">
+                    <button class="btn-primary" onclick="requestMovie()">تحميل</button>
+                </div>
+
+                <video id="main-video" playsinline>
+                    <source src="" type="video/mp4">
+                    المتصفح لا يدعم هذا الفيديو.
+                </video>
+
+                <div class="controls-overlay">
+                    <button class="control-btn" onclick="seek(-10)">↺ 10</button>
+                    <button class="control-btn" onclick="togglePlay()" id="play-btn">▶</button>
+                    <button class="control-btn" onclick="seek(10)">10 ↻</button>
+                    <button class="control-btn" onclick="changeSpeed()" style="font-size: 0.8rem; border: 1px solid #fff; border-radius: 4px; padding: 2px 5px;">
+                        <span id="speed-val">1.0x</span>
+                    </button>
+                    <button class="control-btn" onclick="toggleFullScreen()">⛶</button>
+                </div>
+            </div>
+
+            <div class="chat-section">
+                <div class="chat-header">
+                    <span>غرفة المشاهدة</span>
+                    <span id="online-users" style="color: #888; font-size: 0.8rem;"></span>
+                </div>
+                <div class="chat-messages" id="chat-box"></div>
+                <div class="chat-input-area">
+                    <input type="text" id="msg-input" placeholder="اكتب هنا..." onkeypress="handleEnter(event)">
+                    <button class="btn-primary" onclick="sendMessage()">➤</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast">تم بدء التحميل...</div>
+
+    <script>
+        // ================= إعدادات الاتصال =================
+        // هام: إذا رفعت الباك إند على Render، ضع الرابط هنا بدلاً من localhost
+        const API_BASE_URL = "https://vant-party.onrender.com";
+        // const API_BASE_URL = window.location.hostname === 'localhost' 
+        //                      ? "http://localhost:5000" 
+        //                      : `http://${window.location.hostname}:5000`; 
+        // ==================================================
+    
+        let socket;
+        let currentUser = null;
+        let isRemoteUpdate = false; // Flag لمنع تكرار الإشارات (Loop)
+        const video = document.getElementById('main-video');
+        const playBtn = document.getElementById('play-btn');
+        
+        // إعداد سياق الصوت للمتصفح (Web Audio API)
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function playBeep() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(800, audioCtx.currentTime); // التردد
+            oscillator.frequency.exponentialRampToValueAtTime(300, audioCtx.currentTime + 0.1);
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 0.1);
+        }
+    
+        // ================= Keep Alive Logic (النكز) =================
+        function startKeepAlive() {
+            // إرسال طلب كل 5 دقائق (300000 ملي ثانية)
+            setInterval(async () => {
+                try {
+                    console.log("Pinging server to keep awake...");
+                    await fetch(`${API_BASE_URL}/keep_alive`);
+                } catch (error) {
+                    console.warn("Keep-alive ping failed:", error);
+                }
+            }, 300000); 
+        }
+        // ============================================================
+    
+        async function login() {
+            const usernameInput = document.getElementById('username').value;
+            const passwordInput = document.getElementById('password').value;
+            const errorMsg = document.getElementById('login-error');
+    
+            if (!usernameInput || !passwordInput) {
+                errorMsg.innerText = "يرجى ملء جميع البيانات";
+                return;
+            }
+    
+            try {
+                const response = await fetch(`${API_BASE_URL}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: usernameInput, password: passwordInput })
+                });
+    
+                const data = await response.json();
+    
+                if (response.ok) {
+                    currentUser = data.user;
+                    document.getElementById('login-screen').style.display = 'none';
+                    document.getElementById('app-container').style.display = 'flex';
+                    
+                    initSocket();
+                    startKeepAlive(); // بدء تشغيل النكز لمنع النوم
+                    
+                    // تفعيل الصوت بعد أول تفاعل
+                    if (audioCtx.state === 'suspended') audioCtx.resume();
+                } else {
+                    errorMsg.innerText = data.message || "خطأ في الدخول";
+                }
+            } catch (error) {
+                errorMsg.innerText = "فشل الاتصال بالسيرفر. تأكد من تشغيل backend.";
+                console.error(error);
+            }
+        }
+    
+        function initSocket() {
+            socket = io(API_BASE_URL);
+    
+            socket.on('connect', () => {
+                document.getElementById('connection-status').classList.add('connected');
+                socket.emit('join', { username: currentUser });
+            });
+    
+            socket.on('disconnect', () => {
+                document.getElementById('connection-status').classList.remove('connected');
+                showToast("انقطع الاتصال بالسيرفر!");
+            });
+    
+            // استقبال الشات القديم
+            socket.on('chat_history', (history) => {
+                const chatBox = document.getElementById('chat-box');
+                chatBox.innerHTML = '';
+                history.forEach(msg => appendMessage(msg.sender, msg.message));
+                scrollToBottom();
+            });
+    
+            // استقبال الحالة الأولية (الفيلم، التوقيت، التشغيل)
+            socket.on('sync_state', (state) => {
+                if (state.movie_file) {
+                    const videoSrc = `${API_BASE_URL}/stream/${state.movie_file}`;
+                    if (video.getAttribute('src') !== videoSrc) {
+                        video.src = videoSrc;
+                        document.getElementById('current-movie-title').innerText = state.movie_title || "فيلم شغال";
+                    }
+                }
+                
+                isRemoteUpdate = true; // منع إرسال إشارة عكسية
+                video.currentTime = state.current_time;
+                video.playbackRate = state.speed || 1.0;
+                document.getElementById('speed-val').innerText = state.speed + 'x';
+    
+                if (state.is_playing) {
+                    video.play().catch(e => console.log("Autoplay blocked until interaction"));
+                    playBtn.innerText = "⏸";
+                } else {
+                    video.pause();
+                    playBtn.innerText = "▶";
+                }
+                
+                setTimeout(() => { isRemoteUpdate = false; }, 500);
+            });
+    
+            // استقبال تحديثات الفيديو (تزامن لحظي)
+            socket.on('sync_update', (data) => {
+                isRemoteUpdate = true; // نحن نستقبل أمر، لذا لا تخبر السيرفر مرة أخرى
+                
+                if (Math.abs(video.currentTime - data.time) > 0.5) {
+                    video.currentTime = data.time;
+                }
+    
+                if (data.action === 'play') {
+                    video.play();
+                    playBtn.innerText = "⏸";
+                } else if (data.action === 'pause') {
+                    video.pause();
+                    playBtn.innerText = "▶";
+                } else if (data.action === 'rate') {
+                    video.playbackRate = data.value;
+                    document.getElementById('speed-val').innerText = data.value + 'x';
+                }
+    
+                // إعادة تفعيل الإرسال بعد فترة وجيزة
+                setTimeout(() => { isRemoteUpdate = false; }, 200);
+            });
+    
+            // رسالة جديدة
+            socket.on('new_message', (data) => {
+                appendMessage(data.sender, data.message);
+                scrollToBottom();
+                
+                // تشغيل الصوت إذا كان المرسل شخص آخر
+                if (data.sender !== currentUser) {
+                    if (document.fullscreenElement || document.hidden) {
+                        playBeep();
+                        showToast(`رسالة من ${data.sender}`);
+                    } else {
+                        playBeep(); 
+                    }
+                }
+            });
+    
+            // حالات التحميل
+            socket.on('download_status', (data) => {
+                if(data.status === 'processing') showToast(data.msg || "جاري التجهيز...");
+                if(data.status === 'completed') {
+                    showToast("تم التحميل! جاري التشغيل...");
+                }
+                if(data.status === 'error') showToast("خطأ: " + data.msg);
+            });
+    
+            socket.on('movie_ready', (data) => {
+                video.src = `${API_BASE_URL}/stream/${data.filename}`;
+                document.getElementById('current-movie-title').innerText = data.title;
+                video.load();
+            });
+        }
+    
+        // ================= Video Logic =================
+    
+        function emitVideoAction(action, value = null) {
+            if (isRemoteUpdate) return; 
+            socket.emit('video_action', {
+                action: action,
+                time: video.currentTime,
+                value: value
+            });
+        }
+    
+        video.onplay = () => {
+            playBtn.innerText = "⏸";
+            emitVideoAction('play');
+        };
+        
+        video.onpause = () => {
+            playBtn.innerText = "▶";
+            emitVideoAction('pause');
+        };
+    
+        video.onseeked = () => {
+             emitVideoAction('seek');
+        };
+    
+        function togglePlay() {
+            if (video.paused) video.play();
+            else video.pause();
+        }
+    
+        function seek(seconds) {
+            video.currentTime += seconds;
+        }
+    
+        function changeSpeed() {
+            let speeds = [1.0, 1.25, 1.5, 2.0, 0.75];
+            let current = video.playbackRate;
+            let nextIndex = (speeds.indexOf(current) + 1) % speeds.length;
+            let nextSpeed = speeds[nextIndex];
+            
+            video.playbackRate = nextSpeed;
+            document.getElementById('speed-val').innerText = nextSpeed + 'x';
+            emitVideoAction('rate', nextSpeed);
+        }
+    
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                if (video.requestFullscreen) {
+                    video.requestFullscreen();
+                } else if (video.webkitRequestFullscreen) {
+                    video.webkitRequestFullscreen();
+                }
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        }
+    
+        // ================= Chat Logic =================
+    
+        function appendMessage(sender, message) {
+            const chatBox = document.getElementById('chat-box');
+            const div = document.createElement('div');
+            const isMine = sender === currentUser;
+            
+            div.className = `message ${isMine ? 'msg-mine' : 'msg-other'}`;
+            div.innerHTML = `
+                <div class="msg-info">${isMine ? 'أنا' : sender}</div>
+                ${message}
+            `;
+            chatBox.appendChild(div);
+        }
+    
+        function sendMessage() {
+            const input = document.getElementById('msg-input');
+            const msg = input.value.trim();
+            if (msg && socket) {
+                socket.emit('send_message', { username: currentUser, message: msg });
+                input.value = '';
+            }
+        }
+    
+        function handleEnter(event) {
+            if (event.key === 'Enter') sendMessage();
+        }
+    
+        function scrollToBottom() {
+            const chatBox = document.getElementById('chat-box');
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+    
+        // ================= Admin Logic =================
+    
+        function requestMovie() {
+            const url = document.getElementById('movie-url').value;
+            if (!url) return;
+            
+            showToast("جاري إرسال الطلب للسيرفر...");
+            fetch(`${API_BASE_URL}/request_movie`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: url })
+            });
+            document.getElementById('movie-url').value = '';
+        }
+    
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.innerText = msg;
+            toast.className = "show";
+            setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 3000);
+        }
+    
+    </script>
+</body>
+</html>
