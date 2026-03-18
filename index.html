@@ -53,7 +53,6 @@
             color: white; transition: all 0.3s ease; font-size: 0.95rem; 
         }
 
-        /* إصلاح ألوان خيارات القائمة المنسدلة */
         select option {
             background-color: var(--bg-surface);
             color: var(--text-main);
@@ -135,20 +134,18 @@
             box-shadow: 0 4px 15px rgba(229, 9, 20, 0.3);
         }
 
-        /* 1. جعل شريط التحكم بعرض الشاشة وظاهر دائماً */
         .controls-overlay { 
             position: absolute; bottom: 0; left: 0; 
             width: 100%; max-width: 100%; transform: none; 
             background: linear-gradient(to top, rgba(10,10,10,0.95), rgba(10,10,10,0.6)); 
             padding: 10px 25px; border-radius: 0; 
             display: flex; flex-direction: column; gap: 5px; 
-            opacity: 1; /* ظاهر دائماً */
+            opacity: 1;
             border-top: 1px solid rgba(255, 255, 255, 0.05); 
             box-shadow: 0 -5px 20px rgba(0,0,0,0.5); 
             z-index: 50;
         }
         
-        /* 2. إخفاء نقطة شريط التقدم وترك الخط فقط */
         .progress-bar-custom {
             -webkit-appearance: none;
             width: 100%;
@@ -167,8 +164,8 @@
         .progress-bar-custom::-webkit-slider-thumb {
             -webkit-appearance: none;
             appearance: none;
-            width: 0px;  /* إخفاء النقطة */
-            height: 0px; /* إخفاء النقطة */
+            width: 0px;
+            height: 0px;
             background: transparent;
         }
         .progress-bar-custom:hover::-webkit-slider-thumb {
@@ -255,16 +252,13 @@
         .reply-banner .cancel-rep { cursor: pointer; color: #ff4444; font-weight: bold; padding: 5px; transition: 0.2s; }
         .reply-banner .cancel-rep:hover { transform: scale(1.2); }
         
-        /* 3. حل مشكلة خروج قائمة الرياكشنات خارج الشاشة */
         .reaction-picker { 
             display: none; position: absolute; background: var(--bg-surface); 
             border: 1px solid #444; border-radius: 30px; padding: 6px 12px; gap: 8px; 
             z-index: 20; box-shadow: 0 5px 20px rgba(0,0,0,0.6); top: -45px; 
-            white-space: nowrap; /* منع الالتفاف */
+            white-space: nowrap;
         }
-        /* رسائلك (في اليمين أو اليسار حسب الـ RTL): نجعلها تفتح للداخل */
         .msg-mine-container .reaction-picker { left: 0; right: auto; }
-        /* رسائل الآخرين: تفتح للداخل أيضاً */
         .msg-other-container .reaction-picker { right: 0; left: auto; }
         
         .reaction-picker.show { display: flex; animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
@@ -331,7 +325,6 @@
             .video-section { flex: none; height: 40vh; width: 100%; min-height: 250px; z-index: 10; box-shadow: 0 5px 20px rgba(0,0,0,0.5);}
             .chat-section { flex: 1; min-width: 100%; border-right: none; max-width: none; z-index: 5;}
             
-            /* الموبايل: عرض كامل وتناسق في الحواف */
             .controls-overlay { 
                 bottom: 0; left: 0; padding: 10px 15px; gap: 8px; 
                 width: 100%; border-radius: 0; opacity: 1; 
@@ -412,8 +405,7 @@
                 <button class="close-btn" onclick="toggleModal('selection-modal', false)"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 15px;">وجدنا أكثر من فيديو أو جودة في هذا الرابط، اختر ما تريد تشغيله:</p>
-            <div id="video-options-list" style="max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;">
-                </div>
+            <div id="video-options-list" style="max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;"></div>
         </div>
     </div>
 
@@ -507,8 +499,13 @@
     <div id="toast"><i class="fa-solid fa-circle-check"></i> <span id="toast-msg">تم الإجراء بنجاح</span></div>
 
     <script>
-        // ================= الإعدادات العامة والمتغيرات =================
-        const API_BASE_URL = "https://mcluncher-2.onrender.com"; 
+        // ================= الإعدادات العامة والمتغيرات مع التصليحات =================
+        // تحديد API URL بذكاء حسب البيئة
+        const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+            ? "http://localhost:5000"
+            : "https://mcluncher-2.onrender.com";
+        
+        console.log("🔌 Backend URL:", API_BASE_URL);
         
         let socket; 
         let currentUser = null; 
@@ -530,9 +527,8 @@
         const currentTimeDisp = document.getElementById('current-time-display');
         const totalTimeDisp = document.getElementById('total-time-display');
 
-        // ================= نظام الفيديو وشريط التقدم (يوتيوب ستايل) =================
+        // ================= نظام الفيديو وشريط التقدم =================
         
-        // دالة تحويل الثواني الذكية (تخفي الساعات لو الفيلم أقل من ساعة)
         function formatDuration(seconds) {
             if (isNaN(seconds) || !isFinite(seconds)) return "0:00";
             const h = Math.floor(seconds / 3600);
@@ -544,38 +540,33 @@
             return `${m}:${s.toString().padStart(2, '0')}`;
         }
 
-        // تحديث الشريط مع تشغيل الفيديو (التلوين الديناميكي)
         video.addEventListener('timeupdate', () => {
             if (!video.duration) return;
             const current = video.currentTime;
             const total = video.duration;
             const percentage = (current / total) * 100;
 
-            // تحديث قيمة الشريط إلا لو المستخدم بيسحب الشريط حالياً
             if (document.activeElement !== progressBar) {
                 progressBar.value = percentage;
             }
             
-            // تلوين الجزء المقطوع بالأحمر والمتبقي بالرمادي
             progressBar.style.background = `linear-gradient(to right, var(--primary) ${progressBar.value}%, rgba(255,255,255,0.2) ${progressBar.value}%)`;
             
             currentTimeDisp.innerText = formatDuration(current);
             totalTimeDisp.innerText = formatDuration(total);
         });
 
-        // تقديم/تأخير الفيديو وتلوين الشريط لحظياً عند السحب
         progressBar.addEventListener('input', (e) => {
             const val = e.target.value;
-            // تلوين فوري عند السحب
             e.target.style.background = `linear-gradient(to right, var(--primary) ${val}%, rgba(255,255,255,0.2) ${val}%)`;
             
             if (!video.duration) return;
             const newTime = (val / 100) * video.duration;
             video.currentTime = newTime;
-            emitVideoAction('seek', newTime); // إرسال السيك للغرفة
+            emitVideoAction('seek', newTime);
         });
 
-        function emitVideoAction(act, val = null) { if (!isRemoteUpdate && socket) socket.emit('video_action', { action: act, time: video.currentTime, value: val }); }
+        function emitVideoAction(act, val = null) { if (!isRemoteUpdate && socket) socket.emit('video_action', { action: act, time: video.currentTime, value: val, username: currentUser }); }
         video.onplay = () => { playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>'; emitVideoAction('play'); }; 
         video.onpause = () => { playBtn.innerHTML = '<i class="fa-solid fa-play"></i>'; emitVideoAction('pause'); }; 
         video.onseeked = () => { emitVideoAction('seek'); };
@@ -583,7 +574,6 @@
         function seek(s) { video.currentTime += s; }
         function changeSpeed() { let s = [1.0, 1.25, 1.5, 2.0, 0.75]; let n = s[(s.indexOf(video.playbackRate) + 1) % s.length]; video.playbackRate = n; document.getElementById('speed-val').innerText = n + 'x'; emitVideoAction('rate', n); }
         function toggleFullScreen() { if (!document.fullscreenElement) { if (video.requestFullscreen) video.requestFullscreen(); else if (video.webkitRequestFullscreen) video.webkitRequestFullscreen(); } else { if (document.exitFullscreen) document.exitFullscreen(); } }
-
 
         // ================= التهيئة وتسجيل الدخول =================
         window.onload = () => {
@@ -635,7 +625,8 @@
                     if(!isSilent) errorMsg.innerHTML = data.message; else logout(); 
                 }
             } catch (e) { 
-                if(!isSilent) errorMsg.innerHTML = "فشل الاتصال بالسيرفر، تأكد من تشغيل الباك إند (app.py)"; 
+                console.error("Login error:", e);
+                if(!isSilent) errorMsg.innerHTML = "❌ فشل الاتصال بالسيرفر"; 
             }
         }
 
@@ -643,6 +634,7 @@
             localStorage.removeItem('vant_user'); 
             localStorage.removeItem('vant_pass'); 
             if(heartbeatInterval) clearInterval(heartbeatInterval);
+            if(socket) socket.disconnect();
             location.reload(); 
         }
 
@@ -695,7 +687,7 @@
             if(!url) return showToast("الرجاء إدخال الرابط أولاً");
             
             if(url.toLowerCase().startsWith('file://') || url.toLowerCase().match(/^[a-z]:\\/i)) {
-                return showToast("⚠️ روابط الملفات المحلية غير مدعومة (C:\\ أو file://) بسبب حماية المتصفح.");
+                return showToast("⚠️ روابط الملفات المحلية غير مدعومة");
             }
 
             saveToList('vant_watchlist', "تم حفظه يدوياً للاستخدام لاحقاً", url, source, quality);
@@ -752,7 +744,7 @@
             if (!url) return showToast("الرجاء إدخال رابط صحيح ⚠️");
             
             if(url.toLowerCase().startsWith('file://') || url.toLowerCase().match(/^[a-z]:\\/i)) {
-                return showToast("⚠️ لا يمكن تشغيل ملفاتك الداخلية كروابط مباشرة بسبب نظام الأمان، يجب توفير رابط ويب (http/https).");
+                return showToast("⚠️ لا يمكن تشغيل ملفاتك الداخلية كروابط مباشرة");
             }
 
             globalCurrentUrl = url; 
@@ -761,15 +753,31 @@
             toggleModal('download-modal', false);
             
             fetch(`${API_BASE_URL}/request_movie`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url, source: source, quality: quality }) })
-                .catch(()=> showToast("فشل الاتصال بالباك إند"));
+                .catch((e)=> {
+                    console.error("Request error:", e);
+                    showToast("فشل الاتصال بالباك إند");
+                });
             document.getElementById('movie-url').value = '';
         }
 
-        // ================= WebSockets & Sync =================
+        // ================= WebSockets & Sync مع التصليحات =================
         function initSocket() {
-            socket = io(API_BASE_URL, { transports: ['websocket'], upgrade: false });
+            console.log("⏳ Initializing Socket.IO connection...");
+            
+            socket = io(API_BASE_URL, {
+                transports: ['websocket'],
+                upgrade: false,
+                reconnection: true,
+                reconnectionDelay: 1000,
+                reconnectionDelayMax: 5000,
+                reconnectionAttempts: 5,
+                secure: true,
+                timeout: 60000,
+                enableLogging: false
+            });
             
             socket.on('connect', () => { 
+                console.log("✅ Socket.IO connected successfully!");
                 document.getElementById('connection-status').classList.add('connected'); 
                 socket.emit('join', { username: currentUser }); 
                 
@@ -777,9 +785,18 @@
                 heartbeatInterval = setInterval(() => {
                     socket.emit('heartbeat', { username: currentUser });
                 }, 30000);
+                
+                showToast("✅ متصل بالسيرفر!");
             });
             
-            socket.on('disconnect', () => { 
+            socket.on('connect_error', (error) => {
+                console.error('❌ Connection error:', error);
+                document.getElementById('connection-status').classList.remove('connected');
+                showToast("⚠️ فقدت الاتصال بالسيرفر");
+            });
+            
+            socket.on('disconnect', (reason) => { 
+                console.warn("⚠️ Disconnected:", reason);
                 document.getElementById('connection-status').classList.remove('connected'); 
                 if(heartbeatInterval) clearInterval(heartbeatInterval);
             });
@@ -1071,6 +1088,23 @@
             const t = document.getElementById('toast'); 
             document.getElementById('toast-msg').innerText = msg; 
             t.classList.remove("show"); void t.offsetWidth; t.classList.add("show"); 
+        }
+
+        // Function to play beep sound
+        function playBeep() {
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.frequency.value = 800;
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.start(audioCtx.currentTime);
+                osc.stop(audioCtx.currentTime + 0.1);
+            } catch(e) {
+                console.log("Audio not available");
+            }
         }
     </script>
 </body>
